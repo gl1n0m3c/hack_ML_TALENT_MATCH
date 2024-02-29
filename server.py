@@ -1,9 +1,9 @@
-from flask import Flask, render_template, request, session, jsonify
+from flask import Flask, render_template, request, jsonify, render_template
 import os
 from werkzeug.utils import secure_filename
-import shutil
 from flask_cors import CORS
-from flask_session import Session
+from flask import send_file
+import json
 from openpyxl import Workbook
 from flask import send_file
 import datetime
@@ -20,21 +20,42 @@ from langchain.output_parsers import PydanticOutputParser
 from openai import OpenAI
 from langchain.output_parsers import RetryOutputParser
 from random import randint
+import subprocess
 
-UPLOAD_FOLDER = 'D:/projects/HACKATON_N4/upload/'
-REPORTS_FOLDER = 'D:/projects/HACKATON_N4/resumes/'
+# обработка pdf
+import pdftotext
+#import openai
+import re
+import logging
+import json
+
+import tiktoken
+from docx import Document
+
+
+UPLOAD_FOLDER = '/root/hakathon/app/upload'#'D:/projects/HACKATON_N4/upload/'
+REPORTS_FOLDER ='/root/hakathon/app/resumes' #'D:/projects/HACKATON_N4/resumes/'
 
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-app = Flask(__name__)
+
+#app = Flask(__name__,  static_folder='D:/projects/HACKATON_N4/imgquality-app/build/static',template_folder='D:/projects/HACKATON_N4/imgquality-app/build/')
+app = Flask(__name__,  static_folder='/root/hakathon/app/build/static/',template_folder='/root/hakathon/app/build/')
 
 app.config['SECRET_KEY'] = 'yuyfhjhdjshjdhfjdhsjhjdhjshjshsjhlllljgsdfghjk'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 CORS(app, supports_credentials=True)
 
-Session(app)
+
+def upcase_first_letter(s):
+    if s:
+        return s[0].upper() + (s[1:]).lower()
+def get_methodical_text(methodical_filename):
+    doc = Document(methodical_filename)
+    s = '\n'.join([p.text for p in doc.paragraphs])
+    return s
 
 
 def get_fields(text, instructions, parser):
@@ -89,6 +110,10 @@ def llm_layer(text: str):
 
         easy_fields['resume_id'] = str(randint(10000, 100000))
 
+        easy_fields['first_name'] = upcase_first_letter(easy_fields['first_name'])
+        easy_fields['last_name'] = upcase_first_letter(easy_fields['last_name'])
+        easy_fields['middle_name'] = upcase_first_letter(easy_fields['middle_name'])
+
         for i in contact_fields['contactItems']:
             i['resume_contact_item_id'] = str(randint(10000, 100000))
 
@@ -127,8 +152,28 @@ def llm_layer(text: str):
                       'languageItems': []}}
         return empty
 
+def num_tokens_from_string(string: str, model: str) -> int:
+    """Returns the number of tokens in a text string."""
+    encoding = tiktoken.encoding_for_model(model)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
 
-def create_json(directory_name, file_name):
+def pdf2string(pdf_path) -> str:
+    """
+    Extract the content of a pdf file to string.
+    :param pdf_path: Path to the PDF file.
+    :return: PDF content string.
+    """
+    with open(pdf_path, "rb") as f:
+        pdf = pdftotext.PDF(f)
+    pdf_str = "\n\n".join(pdf)
+    pdf_str = re.sub('\s[,.]', ',', pdf_str)
+    pdf_str = re.sub('[\n]+', '\n', pdf_str)
+    pdf_str = re.sub('[\s]+', ' ', pdf_str)
+    pdf_str = re.sub('http[s]?(://)?', '', pdf_str)
+    return pdf_str
+
+def create_json(directory_name,file_name):
     """
     Создает JSON-файл с данными data и возвращает содержимое файла.
     
@@ -139,21 +184,37 @@ def create_json(directory_name, file_name):
     # Директорию создаем если не было
     # Путь к папке, где будет создан JSON-файл
     directory_path = os.path.join(REPORTS_FOLDER, directory_name)
-
+    
     # Проверяем существование папки
     if not os.path.exists(directory_path):
         os.makedirs(directory_path)  # Если папки нет, создаем ее
 
-    path_to_doc = os.path.join(UPLOAD_FOLDER, directory_name, file_name)
-    path_to_json = os.path.join(REPORTS_FOLDER, directory_name, file_name.split('.')[0] + '.json')
 
-    print(path_to_json)
-    data = {'name': path_to_doc}
-    print(data)
+    path_to_doc = os.path.join(UPLOAD_FOLDER, directory_name, file_name) # тут наш файл загруженный.
+    src_txt = ''
+    if '.doc'  in file_name or 'docx' in file_name:
+        print('IS DOC')
+        src_txt = get_methodical_text(path_to_doc)
+    if '.pdf' in file_name:
+        print('IS PDF')
+        # Выполнение команды ocrmypdf с помощью subprocess
+        try:
+            subprocess.run(["ocrmypdf", path_to_doc, path_to_doc], check=True)
+            print("Конвертация PDF в текстовый файл выполнена успешно.")
+        except subprocess.CalledProcessError as e:
+            print(f"Произошла ошибка при конвертации PDF в текстовый файл: {e}")
+        src_txt = pdf2string(path_to_doc)
+    my_json = llm_layer(src_txt)
+
+    path_to_json= os.path.join(REPORTS_FOLDER, directory_name, file_name.split('.')[0]+'.json')
+
+   # print(path_to_json)
+    #data = {'name':path_to_doc}
+   # print(data)
     # Запись данных в JSON-файл
     with open(path_to_json, 'w') as f:
-        json.dump(data, f)
-
+        json.dump(my_json, f)
+    
     # Возвращение содержимого файла
     return path_to_json
 
@@ -164,16 +225,18 @@ def create_directory(directory):
         os.makedirs(directory)
 
 
+
 @app.route('/getJson', methods=['GET'])
 def get_image():
     # Получаем параметры "Имя директории" и "Имя файла" из запроса
     directory_name = request.args.get('directoryName')
     file_name = request.args.get('fileName')
-    print(directory_name, file_name)
+    print(directory_name,file_name)
     # Проверяем, что переданы оба параметра
     if directory_name and file_name:
         # Собираем полный путь к изображению
         path_json = create_json(directory_name, file_name)
+
 
         # Проверяем, существует ли файл
         if os.path.exists(path_json):
@@ -184,9 +247,9 @@ def get_image():
     # Возвращаем ошибку, если файл не найден
     return 'Resume not found', 404
 
-
 @app.route('/upload', methods=['POST'])
 def upload():
+    print('YES UPLOAD?')
     try:
         print('Received request with content type:', request.content_type)
 
@@ -194,14 +257,14 @@ def upload():
             return jsonify({'error': 'No files part in the request'}), 400
 
         uploaded_files = request.files.getlist('files')
-        #  print('ALL FILES = ',uploaded_files)
+      #  print('ALL FILES = ',uploaded_files)
         if not uploaded_files:
             return jsonify({'error': 'No files uploaded'}), 400
 
         for file in uploaded_files:
             # Получаем полный путь к файлу
             filename = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-            # print('FILENAME====',filename)
+           # print('FILENAME====',filename)
             # Создаем директорию, если необходимо
             directory = os.path.dirname(filename)
             create_directory(directory)
@@ -210,10 +273,26 @@ def upload():
             file.save(filename)
         return jsonify({'message': 'Files uploaded successfully'})
     except Exception as e:
-        print('exxxxx=', e)
+        print('exxxxx=',e)
         return jsonify({'error': str(e)}), 500
 
 
+# Маршрут для обслуживания статических файлов из папки build/static
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    return send_from_directory('/root/hakathon/app/build/static/', filename)
+
+
+
+#  Маршрут для обслуживания статических файлов из папки build
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve(path):
+    if path != "":
+        return 
+    else:
+        return render_template('index.html')
+    
 if __name__ == '__main__':
     llm = ChatOpenAI(model='gpt-3.5-turbo-0125', temperature=0, openai_api_key=chat_openai_key)
     moderator = OpenAI(api_key=chat_openai_key)
@@ -361,4 +440,6 @@ if __name__ == '__main__':
     language_instructions = language_output_parser.get_format_instructions()
 
     # app.run(host="0.0.0.0", port=5000)
-    app.run()
+    app.run(host="0.0.0.0", port=5001)
+    #app.run()
+

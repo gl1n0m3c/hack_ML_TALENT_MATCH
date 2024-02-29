@@ -58,10 +58,9 @@ def get_methodical_text(methodical_filename):
     return s
 
 
-def get_fields(text, instructions, parser):
-    prompt_value = prompt.format_prompt(text=text, format_instructions=instructions)
+def get_fields(text, instructions, parser, example_text):
     chain = prompt | llm | parser
-    response = chain.invoke({'text': text, 'format_instructions': instructions})
+    response = chain.invoke({'text': text, 'format_instructions': instructions, 'example_text':example_text})
     return response.dict()
 
 
@@ -74,7 +73,7 @@ def moderate(text: str):
 def llm_layer(text: str):
     if moderate(text) == False:
         try:
-            easy_fields = get_fields(text, easy_instructions, easy_output_parser)
+            easy_fields = get_fields(text, easy_instructions, easy_output_parser, easy_example)
         except:
             easy_fields = {'first_name': None,
                            'last_name': None,
@@ -92,19 +91,19 @@ def llm_layer(text: str):
                            'resume_name': None,
                            'source_link': None, }
         try:
-            contact_fields = get_fields(text, contact_instructions, contact_output_parser)
+            contact_fields = get_fields(text, contact_instructions, contact_output_parser, contact_example)
         except:
             contact_fields = {'contactItems': [], }
         try:
-            education_fields = get_fields(text, education_instructions, education_output_parser)
+            education_fields = get_fields(text, education_instructions, education_output_parser, education_example)
         except:
             education_fields = {'educationItems': [], }
         try:
-            experience_fields = get_fields(text, experience_instructions, experience_output_parser)
+            experience_fields = get_fields(text, experience_instructions, experience_output_parser, experience_example)
         except:
             experience_fields = {'experienceItems': [], }
         try:
-            language_fields = get_fields(text, language_instructions, language_output_parser)
+            language_fields = get_fields(text, language_instructions, language_output_parser, language_example)
         except:
             language_fields = {'languageItems': []}
 
@@ -199,13 +198,15 @@ def create_json(directory_name,file_name):
         print('IS PDF')
         # Выполнение команды ocrmypdf с помощью subprocess
         try:
-            subprocess.run(["ocrmypdf", path_to_doc, path_to_doc], check=True)
+            subprocess.run(["ocrmypdf", file_name, file_name], check=True)
             print("Конвертация PDF в текстовый файл выполнена успешно.")
         except subprocess.CalledProcessError as e:
             print(f"Произошла ошибка при конвертации PDF в текстовый файл: {e}")
         src_txt = pdf2string(path_to_doc)
+    print(src_txt)
     my_json = llm_layer(src_txt)
 
+    print(my_json)
     path_to_json= os.path.join(REPORTS_FOLDER, directory_name, file_name.split('.')[0]+'.json')
 
    # print(path_to_json)
@@ -302,10 +303,11 @@ if __name__ == '__main__':
 
     {format_instructions}
 
-    Строго соблюдай следующие инструкции:
-
-
-
+    Ты должен следовать следующему примеру:
+    
+    {example_text}
+    
+    По нему ты можешь понять какие типы данных подразумеваются для тех или иных полей.
     ПОЖАЛУЙСТА, обратите внимание на следующие условия:
     - Все значения должны соответствовать условиям, указанным в запросе, включая форматирование и дополнительные указания по каждой колонке.
     - Постарайся извлечь информацию в лучшем виде, избегай ошибок и учти что в исходном тексте могут быть такие ошибки как:
@@ -354,8 +356,22 @@ if __name__ == '__main__':
 
     easy_output_parser = PydanticOutputParser(pydantic_object=CVFields)
     easy_instructions = easy_output_parser.get_format_instructions()
-    easy_fixik1 = RetryOutputParser.from_llm(parser=easy_output_parser, llm=llm)
-
+    easy_example = """{'first_name': 'Иван',
+                'last_name': 'Иванов',
+                'middle_name': ,
+                'birth_date': 1997-12-27,
+                'birth_date_year_only': false,
+                'country': 'Россия',
+                'city': 'Москва',
+                'about': 'Я - опытный разработчик, люблю ездить на велосипеде и читать.',
+                'key_skills': 'Python, Django, CSS, HTML, ML, DS, SQL, Analytics',
+                'salary_expectations_amount': '50000',
+                'salary_expectations_currency': '₽',
+                'gender': 1,
+                'photo_path': 'https://risunok-8.jpg',
+                'resume_name': Резюме кандидата Иванова Ивана,
+                'source_link': 'https://linkedln.com/blablabla',}
+    """
 
     class ContactItem(BaseModel):
         value: Optional[str] = Field(
@@ -372,8 +388,15 @@ if __name__ == '__main__':
 
     contact_output_parser = PydanticOutputParser(pydantic_object=ContactItems)
     contact_instructions = contact_output_parser.get_format_instructions()
-    contact_fixik1 = RetryOutputParser.from_llm(parser=contact_output_parser, llm=llm)
-
+    contact_example = """{'contactItems': [
+                {
+                    'value': 'aiaa3t@gmail.com',
+                    'comment': 'Обращаться только по понедельникам', 
+                    'contact_type': 2, 
+                    'resume_contact_item_id': '43251'}]
+                }
+    ],}
+    """
 
     class EducationItem(BaseModel):
         year: Optional[str] = Field(
@@ -396,8 +419,20 @@ if __name__ == '__main__':
 
     education_output_parser = PydanticOutputParser(pydantic_object=EducationItems)
     education_instructions = education_output_parser.get_format_instructions()
-    education_fixik1 = RetryOutputParser.from_llm(parser=education_output_parser, llm=llm)
-
+    education_example = """{
+                'educationItems': [
+                    {
+                        'year': '2018', 
+                        'organization': 'Казанский авиационный исследовательский университет имени Туполева', 
+                        'faculty': 'Applied Computer Science', 
+                        'specialty': 'Оператор информационных систем',
+                        'result': 'Я извлек много полезных навыков из обучения в этом университете, например программирование и другое',
+                        'education_type': 4, 
+                        'education_level': 5,
+                    }
+                    ]}
+                            Как видно на данном примере, нужно в первом поле указывать только год без лишних знаков, только год - YYYY. В остальных полях тоже следуй инструкции
+    """
 
     class ExperienceItem(BaseModel):
         starts: Optional[str] = Field(
@@ -422,8 +457,14 @@ if __name__ == '__main__':
 
     experience_output_parser = PydanticOutputParser(pydantic_object=ExperienceItems)
     experience_instructions = experience_output_parser.get_format_instructions()
-    experience_fixik1 = RetryOutputParser.from_llm(parser=experience_output_parser, llm=llm)
-
+    experience_example = """
+    {'experienceItems': [{'starts': '2023', 'ends': '2023', 'employer': 'Archetype AI', 'city': 'Belgrade', 'url': null, 'position': 'Full stack Nest, React developer', 'description': 'Prototyped and implemented a scalable real-time low-latency (under 1 second) camera streaming service for following image processing with AI tools; Prototyped an internal streamer\u2019s visualizer for real-time stream playing; On a very tight schedule unblocked a release of a major product by implementing a scalable real-time low-latency (under 1 second) camera streaming service providing video feed to AI tools for processing at Archetype AI.'}, 
+    {'starts': '2022', 'ends': '2023', 'employer': 'Spotnana (Vendor at Akvelon Inc)', 'city': null, 'url': null, 'position': 'Frontend React/React Native developer', 'description': 'Reduced app loading time from 400 to 200 milliseconds, improved design consistency and user experience and accessibility by transitioning an old frontend UI design system to a new MUI 5-based one with lazy components; Implemented features that gained Spotnana partnerships with Amazon, Walmart, and Meta; Added extensive telemetry that significantly improved team's effectiveness by providing insights into user experience; Reduced CI/CD running time from 50 minutes to 30 by optimizing unit tests and sharing best practices with the team; Increased code test coverage from 80% to 85%; Improved developer experience and code quality by configuring eslint rules; Reduced total bundle size for 100kb by removing redux state manager, switching moment to days; Tightly interacted with a product manager and designer resulting in the implementation of consistent user-friendly UI; Led a team of 3 developers.'}, 
+    {'starts': '2020', 'ends': '2021', 'employer': 'Rentals-Platform (Vendor at Akvelon Inc)', 'city': null, 'url': null, 'position': 'Full stack Node, React, Vue developer', 'description': 'Architected, built and supported Dealer and Shopping frontends and backends throughout the app's lifecycle; Automated the tax rates calculation by integration with Avalara tax calculation service; Automated the customer support service actions by implementing admin tools for complex booking refund and update scenarios; Assisted in the migration of 100 new customers to the rentals platform by migrating databases and continuously syncing databases from third-party services; Led a team of 3 developers.'}, 
+    {'starts': '2019', 'ends': '2020', 'employer': 'Maana (Vendor at Akvelon Inc)', 'city': null, 'url': null, 'position': 'Frontend React developer', 'description': 'Implemented a real-time data analyzing tool and notification system using Material-UI; Helped gain a new partnership by implementing MS Azure SSO which was a keystone requirement of the new client.'}, 
+    {'starts': '2018', 'ends': '2019', 'employer': 'National energy company (Vendor at Optisoft)', 'city': null, 'url': null, 'position': 'Full-stack NET Developer/React developer', 'description': 'Architected and built REST API and database structure; Automated entire business operational workflow: booking vehicles, maintaining vehicles, and budget calculation.'}]}
+    Учитывай тип данных в каждом поле и следуй инструкции к ним.
+    """
 
     class LanguageItem(BaseModel):
         language: Optional[str] = Field(
@@ -438,6 +479,19 @@ if __name__ == '__main__':
 
     language_output_parser = PydanticOutputParser(pydantic_object=LanguageItems)
     language_instructions = language_output_parser.get_format_instructions()
+    language_example = """{
+                "languageItems": [
+                    {
+                        "language": "English", 
+                        "language_level": 5, 
+                    }, 
+                    {
+                        "language": "Russian", 
+                        "language_level": 5, 
+                    },
+                    ]}
+                Учитывай тип данных в каждом поле и следуй инструкции к ним.
+    """
 
     # app.run(host="0.0.0.0", port=5000)
     app.run(host="0.0.0.0", port=5001)

@@ -19,6 +19,7 @@ from langchain import PromptTemplate
 from langchain.output_parsers import PydanticOutputParser
 from openai import OpenAI
 from langchain.output_parsers import RetryOutputParser
+from random import randint
 
 UPLOAD_FOLDER = 'D:/projects/HACKATON_N4/upload/'
 REPORTS_FOLDER = 'D:/projects/HACKATON_N4/resumes/'
@@ -85,9 +86,26 @@ def llm_layer(text: str):
             language_fields = get_fields(text, language_instructions, language_output_parser)
         except:
             language_fields = {'languageItems': []}
+
+        easy_fields['resume_id'] = str(randint(10000, 100000))
+
+        for i in contact_fields['contactItems']:
+            i['resume_contact_item_id'] = str(randint(10000, 100000))
+
+        for i in contact_fields['educationItems']:
+            i['resume_education_item_id'] = str(randint(10000, 100000))
+
+        for ind, i in enumerate(contact_fields['experienceItems']):
+            i['resume_experience_item_id'] = str(randint(10000, 100000))
+            i['order'] = ind
+
+        for i in contact_fields['languageItems']:
+            i['resume_language_item_id'] = str(randint(10000, 100000))
+
         return easy_fields | contact_fields | education_fields | experience_fields | language_fields
     else:
-        empty = {'first_name': None,
+        empty = {'resume_id': None,
+                 'first_name': None,
                  'last_name': None,
                  'middle_name': None,
                  'birth_date': None,
@@ -279,7 +297,7 @@ if __name__ == '__main__':
 
     class EducationItem(BaseModel):
         year: Optional[str] = Field(
-            description="Извлеките ТОЛЬКО год окончания образования кандидата. Год начала обучения писать не надо. Если такой информации нет выведите None")
+            description="Извлеките ТОЛЬКО год окончания образования кандидата. Год начала обучения писать не надо.Месяц писать нельзя. Если такой информации нет выведите None")
         organization: Optional[str] = Field(
             description="Извлеките название учебного заведения. Если такой информации нет выведите None")
         faculty: Optional[str] = Field(description="Извлеките факультет. Если такой информации нет выведите None")
@@ -303,9 +321,9 @@ if __name__ == '__main__':
 
     class ExperienceItem(BaseModel):
         starts: Optional[str] = Field(
-            description="Извлеките ТОЛЬКО год начала работы на данной работе. Без лишних знаков. Только год. Если такой информации нет выведите None")
+            description="Извлеките ТОЛЬКО год начала работы на данной работе. Месяц писать нельзя. Только год. Если такой информации нет выведите None")
         ends: Optional[str] = Field(
-            description="Извлеките ТОЛЬКО год конца работы на данной работе.Без лишних знаков. Только год(если настоящее время - пиши 2024) Если такой информации нет выведите None")
+            description="Извлеките ТОЛЬКО год конца работы на данной работе.Месяц писать нельзя. Только год(если настоящее время - пиши 2024) Если такой информации нет выведите None")
         employer: Optional[str] = Field(
             description="Извлеките название организации на данной работе. Если такой информации нет выведите None")
         city: Optional[str] = Field(

@@ -102,7 +102,7 @@ def llm_layer(text: str):
         for i in contact_fields['languageItems']:
             i['resume_language_item_id'] = str(randint(10000, 100000))
 
-        return easy_fields | contact_fields | education_fields | experience_fields | language_fields
+        return {'resume': easy_fields | contact_fields | education_fields | experience_fields | language_fields}
     else:
         empty = {'resume_id': None,
                  'first_name': None,

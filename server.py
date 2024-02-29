@@ -104,26 +104,27 @@ def llm_layer(text: str):
 
         return {'resume': easy_fields | contact_fields | education_fields | experience_fields | language_fields}
     else:
-        empty = {'resume_id': None,
-                 'first_name': None,
-                 'last_name': None,
-                 'middle_name': None,
-                 'birth_date': None,
-                 'birth_date_year_only': False,
-                 'country': None,
-                 'city': None,
-                 'about': None,
-                 'key_skills': None,
-                 'salary_expectations_amount': None,
-                 'salary_expectations_currency': None,
-                 'gender': 1,
-                 'photo_path': None,
-                 'resume_name': None,
-                 'source_link': None,
-                 'contactItems': [],
-                 'educationItems': [],
-                 'experienceItems': [],
-                 'languageItems': []}
+        empty = {'resume':
+                     {'resume_id': None,
+                      'first_name': None,
+                      'last_name': None,
+                      'middle_name': None,
+                      'birth_date': None,
+                      'birth_date_year_only': False,
+                      'country': None,
+                      'city': None,
+                      'about': None,
+                      'key_skills': None,
+                      'salary_expectations_amount': None,
+                      'salary_expectations_currency': None,
+                      'gender': 1,
+                      'photo_path': None,
+                      'resume_name': None,
+                      'source_link': None,
+                      'contactItems': [],
+                      'educationItems': [],
+                      'experienceItems': [],
+                      'languageItems': []}}
         return empty
 
 

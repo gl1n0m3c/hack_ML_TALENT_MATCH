@@ -1,0 +1,8 @@
+pandas~=2.2.1
+flask~=3.0.2
+werkzeug~=3.0.1
+openpyxl~=3.1.2
+cohere
+langchain
+langchain-openai
+tiktoken

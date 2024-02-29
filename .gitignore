@@ -2,4 +2,6 @@
 .idea
 
 # Venv
-venv
+PycharmProjects
+
+config.py

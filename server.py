@@ -92,14 +92,14 @@ def llm_layer(text: str):
         for i in contact_fields['contactItems']:
             i['resume_contact_item_id'] = str(randint(10000, 100000))
 
-        for i in contact_fields['educationItems']:
+        for i in education_fields['educationItems']:
             i['resume_education_item_id'] = str(randint(10000, 100000))
 
-        for ind, i in enumerate(contact_fields['experienceItems']):
+        for ind, i in enumerate(experience_fields['experienceItems']):
             i['resume_experience_item_id'] = str(randint(10000, 100000))
             i['order'] = ind
 
-        for i in contact_fields['languageItems']:
+        for i in language_fields['languageItems']:
             i['resume_language_item_id'] = str(randint(10000, 100000))
 
         return {'resume': easy_fields | contact_fields | education_fields | experience_fields | language_fields}
